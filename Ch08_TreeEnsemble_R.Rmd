@@ -185,31 +185,79 @@ data(Carseats,package = "ISLR2")
 ```
 (a) Split the data set into a training set and a test set.
 ```{r}
-
+set.seed(1)
+nrow(Carseats)
+train = sample(seq(400), 300, replace = FALSE)
+car.train = Carseats[train, ]
+car.test = Carseats[-train, ]
 ```
 
 (b) Fit a regression tree to the training set. Plot the tree, and interpret the results. What test MSE do you obtain?
-```{r}
+```{r, fig.width=10, fig.height=8}
+library(tree)
+tree.model <- tree(Sales ~ ., data = car.train)
 
+plot(tree.model)
+text(tree.model, pretty = 0)
+
+test.predictions <- predict(tree.model, car.test)
+
+test.mse <- mean((car.test$Sales - test.predictions)^2)
+test.mse
 ```
 
 (c) Use cross-validation in order to determine the optimal level of tree complexity. Does pruning the tree improve the test MSE?
-```{r}
+```{r, fig.width=5, fig.height=3}
+tree_model <- tree(Sales ~ ., data = car.train)
+cv_tree <- cv.tree(tree_model, FUN = prune.tree)
 
+plot(cv_tree$size, cv_tree$dev, type = 'b', xlab = "Number of Terminal Nodes", ylab = "CV Deviance")
+optimal_size <- which.min(cv_tree$dev)
+
+pruned_tree <- prune.tree(tree_model, best = optimal_size)
+
+pruned_test_predictions <- predict(pruned_tree, car.test)
+
+pruned_test_mse <- mean((car.test$Sales - pruned_test_predictions)^2)
+pruned_test_mse
 ```
 
 (d) Use the bagging approach in order to analyze this data. What test MSE do you obtain? Use the importance() function to determine which variables are most important.
 ```{r}
+library(randomForest)
 
+bagging_model <- randomForest(Sales ~ ., data = car.train, mtry = ncol(car.train)-1, importance = TRUE)
+bagging_predictions <- predict(bagging_model, car.test)
+
+bagging_test_mse <- mean((car.test$Sales - bagging_predictions)^2)
+bagging_test_mse
+
+variable_importance <- importance(bagging_model)
+variable_importance
 ```
 
 (e) Use random forests to analyze this data. What test MSE do you obtain? Use the importance() function to determine which variables are most important. Describe the effect of m, the number of variables considered at each split, on the error rate obtained.
-```{r}
+```{r, fig.width=8, fig.height=4}
+rf_model <- randomForest(Sales ~ ., data = car.train, importance = TRUE)
+rf_predictions <- predict(rf_model, car.test)
 
+rf_test_mse <- mean((car.test$Sales - rf_predictions)^2)
+rf_test_mse
+
+variable_importance <- importance(rf_model)
+variable_importance
+
+varImpPlot(rf_model)
 ```
 (f) Now analyze the data using BART, and report your results.
 ```{r}
-
+library(dbarts)
+bart_model <- bart(Sales ~ ., data = car.train)
+importance <- get_variable_importance(bart_model)
+predictions <- predict(bart_model, new_data = car.test)
+mse <- mean((car.test$Sales - predictions)^2)
+print(importance)
+print(mse)
 ```
 
 ### OJ
@@ -224,8 +272,11 @@ data(OJ,package = "ISLR2")
 
 Your code:
 ```{r,echo=TRUE}
-#
-#
+set.seed(1)
+nrow(OJ)
+train = sample(seq(1070), 800, replace = FALSE)
+OJ.train = OJ[train, ]
+OJ.test = OJ[-train, ]
 ```
 
 Your answer:
@@ -240,8 +291,8 @@ Please write your answer in full sentences.
 
 Your code:
 ```{r,echo=TRUE}
-#
-#
+tree.OJ = tree(Purchase~.,data=OJ.train)
+summary(tree.OJ)
 ```
 
 Your answer:
@@ -256,8 +307,7 @@ Please write your answer in full sentences.
 
 Your code:
 ```{r,echo=TRUE}
-#
-#
+tree.OJ
 ```
 
 Your answer:
@@ -269,16 +319,27 @@ Please write your answer in full sentences.
 ~~~
 
 (d) Create a plot of the tree, and interpret the results.
-```{r}
-
+```{r, fig.width=10, fig.height=8}
+plot(tree.OJ)
+text(tree.OJ, pretty = 0)
 ```
 
 (e) Predict the response on the test data, and produce a confusion matrix comparing the test labels to the predicted test labels. What is the test error rate?
 
 Your code:
 ```{r,echo=TRUE}
-#
-#
+OJ_test_predictions <- predict(tree.OJ, newdata = OJ.test, type = "class")
+
+confusion_matrix <- table(OJ.test$Purchase, OJ_test_predictions)
+
+print(confusion_matrix)
+
+correct_predictions <- sum(diag(confusion_matrix))
+total_predictions <- sum(confusion_matrix)
+test_error_rate <- 1 - (correct_predictions / total_predictions)
+
+print(test_error_rate)
+
 ```
 
 Your answer:
@@ -293,8 +354,8 @@ Please write your answer in full sentences.
 
 Your code:
 ```{r,echo=TRUE}
-#
-#
+cv_tree <- cv.tree(tree.OJ, FUN = prune.tree)
+print(cv_tree)
 ```
 
 Your answer:
@@ -308,9 +369,8 @@ Please write your answer in full sentences.
 (g) Produce a plot with tree size on the x-axis and cross-validated classification error rate on the y-axis.
 
 Your code:
-```{r,echo=TRUE}
-#
-#
+```{r,echo=TRUE, fig.width=5, fig.height=4}
+plot(cv_tree$size, cv_tree$dev, type = "b")
 ```
 
 Your answer:
@@ -325,8 +385,9 @@ Please write your answer in full sentences.
 
 Your code:
 ```{r,echo=TRUE}
-#
-#
+optimal_size <- which.min(cv_tree$dev)
+best_tree_size <- cv_tree$size[optimal_size]
+best_tree_size
 ```
 
 Your answer:
@@ -340,9 +401,20 @@ Please write your answer in full sentences.
 (i) Produce a pruned tree corresponding to the optimal tree size obtained using cross-validation. If cross-validation does not lead to selection of a pruned tree, then create a pruned tree with five terminal nodes.
 
 Your code:
-```{r,echo=TRUE}
-#
-#
+```{r,echo=TRUE, fig.width=10, fig.height=8}
+optimal_size <- which.min(cv_tree$dev)
+best_size <- cv_tree$size[optimal_size]
+
+pruned_tree <- prune.tree(tree_model, best = best_size)
+
+if (best_size == max(cv_tree$size)) {
+  pruned_tree <- prune.tree(tree_model, best = 5)
+}
+
+plot(pruned_tree)
+text(pruned_tree, pretty = 0)
+
+summary(pruned_tree)
 ```
 
 Your answer:
@@ -357,8 +429,23 @@ Please write your answer in full sentences.
 
 Your code:
 ```{r,echo=TRUE}
-#
-#
+unpruned_train_predictions <- predict(tree_model, OJ.train, type = "class")
+
+unpruned_train_error <- mean(unpruned_train_predictions != OJ.train$Purchase)
+
+pruned_train_predictions <- predict(pruned_tree, OJ.train, type = "class")
+pruned_train_error <- mean(pruned_train_predictions != OJ.train$Purchase)
+
+print(paste("Unpruned tree error:", unpruned_train_error))
+print(paste("Pruned tree error:", pruned_train_error))
+
+if (unpruned_train_error > pruned_train_error) {
+  print("The unpruned tree has a higher training error rate.")
+} else if (unpruned_train_error < pruned_train_error) {
+  print("The pruned tree has a higher training error rate.")
+} else {
+  print("The training error rates are equal.")
+}
 ```
 
 Your answer:
